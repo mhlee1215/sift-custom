@@ -16,6 +16,9 @@ using namespace std;
 
 #include "CvUtils.h"
 
+#define CV_MAT_ELEM_CN( mat, elemtype, row, col ) \
+    (*(elemtype*)((mat).data.ptr + (size_t)(mat).step*(row) + sizeof(elemtype)*(col)))
+
 int WinMain(HINSTANCE hInstance,
 		HINSTANCE hPrevInstance,
 		LPTSTR    lpCmdLine,
@@ -96,7 +99,6 @@ int WinMain(HINSTANCE hInstance,
 	//모든 옥타브에 대해 DOG 이미지 저장
 	vector<IplImage**> octaveDOGVector;
 
-
 	//처음에는 원본과 동일함
 	IplImage* currentSrc = cvCloneImage(srcImg);
 
@@ -132,6 +134,7 @@ int WinMain(HINSTANCE hInstance,
 		//한 옥타브에 대해서 DOG를 구함
 		IplImage** oneOctaveDOGImages = new IplImage*[maxScale-1];
 		//한 옥타브의 모든 스케일에 대해서
+		//DOG이므로 스케일의 수보다 하나가 준다.
 		for(int scale = 0; scale < maxScale-1 ; scale++){
 			IplImage* currentScaleImage =  oneOctaveImages[scale];
 			IplImage* nextScaleImage =  oneOctaveImages[scale+1];
@@ -139,13 +142,68 @@ int WinMain(HINSTANCE hInstance,
 			IplImage* dogImage =  cvCreateImage(cvSize(currentScaleImage->width, currentScaleImage->height), IPL_DEPTH_8U, 1);
 			cvSub(nextScaleImage, currentScaleImage, dogImage);
 			oneOctaveDOGImages[scale] = dogImage;
-//			if(it == octaveScaleVector.begin()){
-//				cvShowImage("111111: "+scale, currentScaleImage);
-//				cvShowImage("222222: "+scale, nextScaleImage);
-//			}
 		}
 		octaveDOGVector.push_back(oneOctaveDOGImages);
 	}
+
+	//3단계 DOG이미지를 통한 keypoint 추출
+	int initThreshold = 100;
+	vector<vector<CvPoint> > octaveKeypoint;
+
+	vector<IplImage**>::iterator itDog;
+	for(itDog = octaveScaleVector.begin(); itDog != octaveScaleVector.end() ; itDog++){
+		IplImage** oneOctaveImages = *itDog;
+		vector<CvPoint> oneOctaveKeypoint;
+
+
+		CvMat** oneOctaveMat = new CvMat*[maxScale];
+
+		//DOG이므로 스케일보다 하나가 준다.
+		for(int scale = 0 ; scale < maxScale-1 ; scale++){
+			//cout << oneOctaveImages[scale] << endl;
+			//CvMat mathdr, *mat = cvGetMat( oneOctaveImages[scale], &mathdr );
+			CvMat *mat = cvCreateMat( oneOctaveImages[scale]->height, oneOctaveImages[scale]->width, CV_32S );
+			cvConvert( oneOctaveImages[scale], mat );
+			oneOctaveMat[scale] = mat;
+		}
+
+		//DOG이미지간의 아래위 비교를 해야 하므로, 시작부 1개, 종료부 추가 1개 도합 3개가 줄어든다.
+		//ex) 1, 2, 3, 4, 5 -> (DOG) -> D1, D2, D3, D4 -> 비교 -> (D1, D2, D3), (D2, D3, D4) => index (2, 3) 만 고려됨
+
+		for(int scale = 1 ; scale < maxScale-2 ; scale++){
+			CvMat *mat = oneOctaveMat[scale];
+			//인덱스가 0부터 가므로, 1, 2 만 고려됨
+			//if(itDog == octaveScaleVector.begin() && scale == 1){
+
+			for(int y = 0 ; y < mat->height ; y++){
+				for(int x = 0 ; x < mat->width ; x++){
+					int center = CV_MAT_ELEM_CN( *mat, int, y, x * CV_MAT_CN(mat->type) + CV_32S );
+
+					if(center > initThreshold){
+						//cout <<  val << " ";
+						CvPoint cvPoint;
+						cvPoint.x = x;
+						cvPoint.y = y;
+						oneOctaveKeypoint.push_back(cvPoint);
+					}
+				}
+				//cout << endl;
+			}
+			//}
+
+
+		}
+
+
+		cout << "size: " << oneOctaveKeypoint.size() << endl;
+		octaveKeypoint.push_back(oneOctaveKeypoint);
+	}
+
+
+
+
+
+
 
 	cout << octaveScaleVector.size() << endl;
 	cout << octaveDOGVector.size() << endl;
@@ -162,26 +220,26 @@ int WinMain(HINSTANCE hInstance,
 
 	cvmSub(dstMat, srcMat, resultMat);
 
-//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
-//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
-//			cout << srcMat->data.fl[j + srcMat->cols + i] << " ";
-//		}
-//		cout << endl;
-//	}
-//	cout << endl;
-//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
-//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
-//			cout << dstMat->data.fl[j + dstMat->cols + i] << " ";
-//		}
-//		cout << endl;
-//	}
-//	cout << endl;
-//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
-//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
-//			cout << resultMat->data.fl[j + resultMat->cols + i] << " ";
-//		}
-//		cout << endl;
-//	}
+	//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
+	//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
+	//			cout << srcMat->data.fl[j + srcMat->cols + i] << " ";
+	//		}
+	//		cout << endl;
+	//	}
+	//	cout << endl;
+	//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
+	//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
+	//			cout << dstMat->data.fl[j + dstMat->cols + i] << " ";
+	//		}
+	//		cout << endl;
+	//	}
+	//	cout << endl;
+	//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
+	//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
+	//			cout << resultMat->data.fl[j + resultMat->cols + i] << " ";
+	//		}
+	//		cout << endl;
+	//	}
 	//IplConvKernel* kernel = cvCreateStructuringElementEx(3, 3, 0, 0, CV_SHAPE_RECT, NULL);
 
 	IplImage* diffImg = cvCreateImage(cvSize(srcImg->width, srcImg->height), IPL_DEPTH_8U, 1);
@@ -210,20 +268,20 @@ int WinMain(HINSTANCE hInstance,
 
 	}
 
-//	IplImage* img1 = hw;
-//	IplImage* img2 = test;
-//
-//	CvMat *dist  = cvCreateMat( img1->height, img1->width, CV_64FC1 );
-//	int D = img1->nChannels; // D: Number of colors (dimension)
-//	int N = img1->width * img1->height; // N: number of pixels
-//	CvMat mat1hdr, *mat1 = cvReshape( img1, &mat1hdr, 1, N ); // N x D(colors)
-//	CvMat mat2hdr, *mat2 = cvReshape( img2, &mat2hdr, 1, N ); // N x D(colors)
-//	CvMat diffhdr, *diff  = cvCreateMat( N, D, CV_64FC1 ); // N x D, temporal buff
-//	cvSub( mat1, mat2, diff );
-//	cvMul( diff, diff, diff );
-//	dist = cvReshape( dist, &diffhdr, 1, N ); // nRow x nCol to N x 1
-//	cvReduce( diff, dist, 1, CV_REDUCE_SUM ); // N x D to N x 1
-//	dist = cvReshape( dist, &diffhdr, 1, img1->height ); // Restore N x 1 to nRow x nCol
+	//	IplImage* img1 = hw;
+	//	IplImage* img2 = test;
+	//
+	//	CvMat *dist  = cvCreateMat( img1->height, img1->width, CV_64FC1 );
+	//	int D = img1->nChannels; // D: Number of colors (dimension)
+	//	int N = img1->width * img1->height; // N: number of pixels
+	//	CvMat mat1hdr, *mat1 = cvReshape( img1, &mat1hdr, 1, N ); // N x D(colors)
+	//	CvMat mat2hdr, *mat2 = cvReshape( img2, &mat2hdr, 1, N ); // N x D(colors)
+	//	CvMat diffhdr, *diff  = cvCreateMat( N, D, CV_64FC1 ); // N x D, temporal buff
+	//	cvSub( mat1, mat2, diff );
+	//	cvMul( diff, diff, diff );
+	//	dist = cvReshape( dist, &diffhdr, 1, N ); // nRow x nCol to N x 1
+	//	cvReduce( diff, dist, 1, CV_REDUCE_SUM ); // N x D to N x 1
+	//	dist = cvReshape( dist, &diffhdr, 1, img1->height ); // Restore N x 1 to nRow x nCol
 
 	//cvShowImage("Diff2 Image", diffImg);
 	cvWaitKey();
