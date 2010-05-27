@@ -13,9 +13,10 @@ using namespace std;
 #include "CvPointCustom.h"
 #include <vector>
 
-template <class _Ty, class _A = std::allocator<_Ty> >
-class VectorCustom : public std::vector<_Ty, _A>
+class VectorCustom
 {
+private:
+	vector<CvPointCustom> points;
 public:
 	VectorCustom();
 	virtual ~VectorCustom();

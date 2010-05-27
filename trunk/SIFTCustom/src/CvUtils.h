@@ -19,6 +19,8 @@ public:
 	CvUtils();
 	virtual ~CvUtils();
 
+	void set8BitPixcel(IplImage* img, int x, int y, int value);
+	void set8BitPixcel(IplImage* img, int x, int y, int channel, int rgb, int value);
 	uchar get8BitPixcel(IplImage* img, int x, int y);
 	uchar get8BitPixcel(IplImage* img, int x, int y, int channel, int rgb);
 };
