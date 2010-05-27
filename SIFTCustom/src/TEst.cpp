@@ -13,6 +13,7 @@ using namespace std;
 
 #include "cv.h"
 #include "highgui.h"
+#include "cxtypes.h"
 
 #include "CvUtils.h"
 
@@ -68,7 +69,7 @@ int WinMain(HINSTANCE hInstance,
 	//
 	cvCvtColor(resizedImg, srcImg, CV_RGB2GRAY);
 
-	CvUtils* util = new CvUtils();
+	CvUtils* cvUtils = new CvUtils();
 
 
 
@@ -85,10 +86,10 @@ int WinMain(HINSTANCE hInstance,
 	//		cout << endl;
 	//	}
 
-	CvMat* srcMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
+	//CvMat* srcMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
 	//cout << srcImg->width << ", " << srcImg->height << ", " << srcImg->nChannels << endl;
 	//cout << srcMat->width << ", " << srcMat->height << ", " << srcMat->type << endl;
-	cvConvert(srcImg, srcMat);
+	//cvConvert(srcImg, srcMat);
 
 	int maxOctave = 3;
 	int maxScale = 5;
@@ -147,13 +148,16 @@ int WinMain(HINSTANCE hInstance,
 	}
 
 	//3단계 DOG이미지를 통한 keypoint 추출
-	int initThreshold = 100;
-	vector<vector<CvPoint> > octaveKeypoint;
+
+
+	//CvMat *mat = cvCreateMat( oneOctaveImages[scale]->height, oneOctaveImages[scale]->width, CV_32S );
+	int initThreshold = 60;
+	vector<vector<CvMat*> > octaveKeypoint;
 
 	vector<IplImage**>::iterator itDog;
 	for(itDog = octaveScaleVector.begin(); itDog != octaveScaleVector.end() ; itDog++){
 		IplImage** oneOctaveImages = *itDog;
-		vector<CvPoint> oneOctaveKeypoint;
+		vector<CvMat*> oneOctaveKeypoint;
 
 
 		CvMat** oneOctaveMat = new CvMat*[maxScale];
@@ -171,31 +175,47 @@ int WinMain(HINSTANCE hInstance,
 		//ex) 1, 2, 3, 4, 5 -> (DOG) -> D1, D2, D3, D4 -> 비교 -> (D1, D2, D3), (D2, D3, D4) => index (2, 3) 만 고려됨
 
 		for(int scale = 1 ; scale < maxScale-2 ; scale++){
+			CvMat *keyPoints = cvCreateMat( oneOctaveImages[scale]->height, oneOctaveImages[scale]->width, CV_32S );
 			CvMat *mat = oneOctaveMat[scale];
 			//인덱스가 0부터 가므로, 1, 2 만 고려됨
 			//if(itDog == octaveScaleVector.begin() && scale == 1){
 
 			for(int y = 0 ; y < mat->height ; y++){
 				for(int x = 0 ; x < mat->width ; x++){
-					int center = CV_MAT_ELEM_CN( *mat, int, y, x * CV_MAT_CN(mat->type) + CV_32S );
+					CV_MAT_ELEM( *keyPoints, int, 0, 0 ) = 0;
+					int center = CV_MAT_ELEM_CN( *mat, int, y, x  );
+					//if(itDog == octaveScaleVector.begin() && scale == 1 && y == 0)
+					//	cout << "test: " << x << ", " << center << endl;
+					int startX = x -1;
+					if(startX < 0) startX = 0;
+					int startY = y -1;
+					if(startY < 0) startY = 0;
 
-					if(center > initThreshold){
-						//cout <<  val << " ";
-						CvPoint cvPoint;
-						cvPoint.x = x;
-						cvPoint.y = y;
-						oneOctaveKeypoint.push_back(cvPoint);
+					int endX = x + 1;
+					if(endX >= mat->width) endX = mat->width-1;
+					int endY = y + 1;
+					if(endY >= mat->height) endY = mat->height-1;
+
+					int maxDiff = 0;
+					int diff = 0;
+					for(int vX = startX ; vX < endX ; vX++){
+						for(int vY = startY ; vY < endY ; vY++){
+							diff = abs(center - CV_MAT_ELEM_CN( *mat, int, vY, vX  ));
+							maxDiff = max(diff, maxDiff);
+						}
+					}
+					//cout << "maxDiff: " << maxDiff << endl;
+					if(maxDiff > initThreshold){
+						if(itDog == octaveScaleVector.begin() && scale == 1 && y == 0)
+							cout << "selected: " << maxDiff << ", x: " << x << ", y: " << y << endl;
+						CV_MAT_ELEM( *keyPoints, int, y, x  ) = 1;
 					}
 				}
-				//cout << endl;
 			}
-			//}
-
-
+			oneOctaveKeypoint.push_back(keyPoints);
 		}
 
-
-		cout << "size: " << oneOctaveKeypoint.size() << endl;
+		//cout << "size: " << oneOctaveKeypoint.size() << endl;
 		octaveKeypoint.push_back(oneOctaveKeypoint);
 	}
 
@@ -213,12 +233,10 @@ int WinMain(HINSTANCE hInstance,
 	IplImage* test1 = cvCreateImage(cvSize(srcImg->width, srcImg->height), IPL_DEPTH_8U, 1);
 	cvSmooth(srcImg, test1, CV_GAUSSIAN, 5, 5);
 
-	CvMat* dstMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
-	cvConvert(test, dstMat);
-
-	CvMat* resultMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
-
-	cvmSub(dstMat, srcMat, resultMat);
+//	CvMat* dstMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
+//	cvConvert(test, dstMat);
+//	CvMat* resultMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
+//	cvmSub(dstMat, srcMat, resultMat);
 
 	//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
 	//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
@@ -261,12 +279,47 @@ int WinMain(HINSTANCE hInstance,
 	for(it = octaveDOGVector.begin(); it != octaveDOGVector.end() ; it++){
 		if( it == octaveDOGVector.begin()){
 			for(int scale = 0 ; scale < maxScale-1 ; scale++){
-				cvShowImage("DOG Image: "+scale, (*it)[scale]);
+				if(scale == 0)
+					cvShowImage("DOG Image: "+scale, (*it)[scale]);
 			}
 
 		}
-
 	}
+
+
+	vector<vector<CvMat*> >::iterator it1;
+	vector<CvMat*>::iterator it2;
+	IplImage* testResult = resizedImg;//cvCreateImage(cvSize(srcImg->width, srcImg->height), IPL_DEPTH_8U, 1);
+
+	for(it1 = octaveKeypoint.begin(); it1 != octaveKeypoint.end() ; it1++){
+		if( it1 == octaveKeypoint.begin()){
+			for(it2 = it1->begin(); it2 != it1->end() ; it2++){
+				if( it2 == it1->begin()){
+					//cout << "hi" << endl;
+					CvMat* mat = *it2;
+					for(int yy = 0 ; yy < mat->height ; yy++){
+						for(int xx = 0 ; xx < mat->width ; xx++){
+							int keyVal = CV_MAT_ELEM_CN( *mat, int, yy, xx  );
+							//cout << keyVal << endl;
+							if(keyVal == 1)
+							{
+								cout << xx << ", " << yy << endl;
+								//cvUtils->set8BitPixcel(testResult, xx, yy, 255);
+								cvUtils->set8BitPixcel(testResult, xx, yy, 3, 0, 0);
+								cvUtils->set8BitPixcel(testResult, xx, yy, 3, 1, 0);
+								cvUtils->set8BitPixcel(testResult, xx, yy, 3, 2, 255);
+							}
+						}
+					}
+
+				}
+			}
+
+		}
+	}
+	cvShowImage("Test Result Image: ", testResult);
+
+
 
 	//	IplImage* img1 = hw;
 	//	IplImage* img2 = test;
