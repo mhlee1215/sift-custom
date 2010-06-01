@@ -10,7 +10,6 @@ Copyright (C) 2006  Rob Hess <hess@eecs.oregonstate.edu>
 #include "imgfeatures.h"
 #include "kdtree.h"
 #include "utils.h"
-#include "xform.h"
 
 #include <cv.h>
 #include <cxcore.h>
@@ -29,8 +28,8 @@ using namespace std;
 
 /******************************** Globals ************************************/
 
-char img1_file[] = "beaver.png";
-char img2_file[] = "beaver_xform.png";
+char img1_file[] = "C:/workspace/SIFT_DEMO/src/beaver.png";
+char img2_file[] = "C:/workspace/SIFT_DEMO/src/beaver_xform.png";
 
 /********************************** Main *************************************/
 
@@ -55,6 +54,8 @@ int main( int argc, char** argv )
 
 	cout << "Finding features in " << img1_file << "..." << endl;
 	n1 = sift_features( img1, &feat1 );
+	//import_features("test.feat", FEATURE_LOWE, &feat1);
+	//export_features("test.feat", feat1, n1);
 	cout << "Finding features in " << img2_file << "..." << endl;
 	n2 = sift_features( img2, &feat2 );
 	kd_root = kdtree_build( feat2, n2 );
