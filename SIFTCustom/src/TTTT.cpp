@@ -6,25 +6,43 @@ using namespace std;
 
 #include "cv.h"
 #include "highgui.h"
-#include "cxtypes.h"
+#include <stdio.h>
 
-#include "CvUtils.h"
-#define CV_MAT_ELEM_CN( mat, elemtype, row, col ) \
-    (*(elemtype*)((mat).data.ptr + (size_t)(mat).step*(row) + sizeof(elemtype)*(col)))
-
+// A Simple Camera Capture Framework
 /*
-int main(void){
-	CvMat *mat = cvCreateMat(10,10, CV_32S);
-	CV_MAT_ELEM( *mat, int, 1, 1 * CV_MAT_CN(mat->type) + CV_32S  ) = 1;
-	CV_MAT_ELEM( *mat, int, 1, 2 * CV_MAT_CN(mat->type) + CV_32S  ) = 1;
+int main() {
 
-	for(int i = 0 ; i < mat->height ; i++){
-		for(int j = 0 ; j < mat->width ; j++){
-			cout << CV_MAT_ELEM_CN( *mat, int, i, j * CV_MAT_CN(mat->type) + CV_32S ) << " ";
-		}
-		cout << endl;
-	}
+  CvCapture* capture = cvCaptureFromCAM( CV_CAP_ANY );
+  if( !capture ) {
+    fprintf( stderr, "ERROR: capture is NULL \n" );
+    getchar();
+    return -1;
+  }
 
-	return 0;
+  // Create a window in which the captured images will be presented
+  cvNamedWindow( "mywindow", CV_WINDOW_AUTOSIZE );
+
+  // Show the image captured from the camera in the window and repeat
+  while( 1 ) {
+    // Get one frame
+    IplImage* frame = cvQueryFrame( capture );
+    if( !frame ) {
+      fprintf( stderr, "ERROR: frame is null...\n" );
+      getchar();
+      break;
+    }
+
+    cvShowImage( "mywindow", frame );
+    // Do not release the frame!
+
+    //If ESC key pressed, Key=0x10001B under OpenCV 0.9.7(linux version),
+    //remove higher bits using AND operator
+    if( (cvWaitKey(10) & 255) == 27 ) break;
+  }
+
+  // Release the capture device housekeeping
+  cvReleaseCapture( &capture );
+  cvDestroyWindow( "mywindow" );
+  return 0;
 }
 */
