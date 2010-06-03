@@ -112,7 +112,7 @@ int WinMain(HINSTANCE hInstance,
 		for(int scale = 0 ; scale < maxScale ; scale++, sigma*=20){
 			//현재 스케일의 일반 이미지
 			IplImage* smoothImage = cvCreateImage(cvSize(currentSrc->width, currentSrc->height), IPL_DEPTH_8U, 1);
-			cvSmooth(currentSrc, smoothImage, CV_GAUSSIAN, 3+scale*2, 3+scale*2);
+			cvSmooth(currentSrc, smoothImage, CV_GAUSSIAN, 5+scale*2, 5+scale*2);
 			oneOctaveImages[scale] = smoothImage;
 		}
 		octaveScaleVector.push_back(oneOctaveImages);
@@ -151,7 +151,7 @@ int WinMain(HINSTANCE hInstance,
 
 
 	//CvMat *mat = cvCreateMat( oneOctaveImages[scale]->height, oneOctaveImages[scale]->width, CV_32S );
-	int initThreshold = 60;
+	int initThreshold = 30;
 	vector<vector<CvMat*> > octaveKeypoint;
 
 	vector<IplImage**>::iterator itDog;
@@ -198,14 +198,31 @@ int WinMain(HINSTANCE hInstance,
 
 					int maxDiff = 0;
 					int diff = 0;
+
+					//극대점 여부
+					int isMaxima = 0;
+					//극소점 여부
+					int isMinima = 0;
 					for(int vX = startX ; vX < endX ; vX++){
 						for(int vY = startY ; vY < endY ; vY++){
-							diff = abs(center - CV_MAT_ELEM_CN( *mat, int, vY, vX  ));
+							//극소/극대점 여부 판단
+							int diffInt = center - CV_MAT_ELEM_CN( *mat, int, vY, vX  );
+							if(diffInt > 0) isMaxima = 1;
+							else isMinima = 1;
+
+							//극소점이자 극대점이면, 기각
+							if(isMaxima + isMinima == 2) break;
+
+							//최대 변의값을 찾음
+							diff = abs(diffInt);
 							maxDiff = max(diff, maxDiff);
 						}
 					}
-					//cout << "maxDiff: " << maxDiff << endl;
-					if(maxDiff > initThreshold){
+
+					//극대점이거나 극소점 그리고, 문턱치보다 높은 변화치를 가진 경우만 수락 그 이외는 기각
+					//if(maxDiff > initThreshold){
+					//if(isMaxima + isMinima == 1){
+					if(isMaxima + isMinima == 1 && maxDiff > initThreshold){
 						if(itDog == octaveScaleVector.begin() && scale == 1 && y == 0)
 							cout << "selected: " << maxDiff << ", x: " << x << ", y: " << y << endl;
 						CV_MAT_ELEM( *keyPoints, int, y, x  ) = 1;
@@ -297,13 +314,16 @@ int WinMain(HINSTANCE hInstance,
 				if( it2 == it1->begin()){
 					//cout << "hi" << endl;
 					CvMat* mat = *it2;
+
+					int keyCount = 0;
 					for(int yy = 0 ; yy < mat->height ; yy++){
 						for(int xx = 0 ; xx < mat->width ; xx++){
 							int keyVal = CV_MAT_ELEM_CN( *mat, int, yy, xx  );
 							//cout << keyVal << endl;
 							if(keyVal == 1)
 							{
-								cout << xx << ", " << yy << endl;
+								keyCount++;
+								//cout << xx << ", " << yy << endl;
 								//cvUtils->set8BitPixcel(testResult, xx, yy, 255);
 								cvUtils->set8BitPixcel(testResult, xx, yy, 3, 0, 0);
 								cvUtils->set8BitPixcel(testResult, xx, yy, 3, 1, 0);
@@ -311,6 +331,7 @@ int WinMain(HINSTANCE hInstance,
 							}
 						}
 					}
+					cout << "total: " << mat->height * mat->width << ", keyPoints: " << keyCount << endl;
 
 				}
 			}
