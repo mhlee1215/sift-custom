@@ -18,7 +18,7 @@ using namespace std;
 #include "CvUtils.h"
 
 #define CV_MAT_ELEM_CN( mat, elemtype, row, col ) \
-    (*(elemtype*)((mat).data.ptr + (size_t)(mat).step*(row) + sizeof(elemtype)*(col)))
+		(*(elemtype*)((mat).data.ptr + (size_t)(mat).step*(row) + sizeof(elemtype)*(col)))
 
 int WinMain(HINSTANCE hInstance,
 		HINSTANCE hPrevInstance,
@@ -28,7 +28,7 @@ int WinMain(HINSTANCE hInstance,
 	// MessageBox(NULL, "11Hello in EclipseCDT", "EclipseCDT", MB_OK);
 	//return 0;
 
-	CvImage img("C:/workspace/SIFTCustom/src/lena.jpg", 0, CV_LOAD_IMAGE_COLOR),
+	CvImage img("C:/workspace/SIFTCustom/src/car.jpg", 0, CV_LOAD_IMAGE_COLOR),
 			img_yuv, y, noise;
 	CvRNG rng = cvRNG(-1);
 
@@ -55,11 +55,11 @@ int WinMain(HINSTANCE hInstance,
 
 	CvSize size = img.size();
 
-	IplImage* resizedImg = cvCreateImage(cvSize(size.width/2, size.height/2), IPL_DEPTH_8U, 3);
-	cvPyrDown(img, resizedImg, CV_GAUSSIAN_5x5);
+	IplImage* resizedImg = img;//cvCreateImage(cvSize(size.width/2, size.height/2), IPL_DEPTH_8U, 3);
+	//cvPyrDown(img, resizedImg, CV_GAUSSIAN_5x5);
 
 
-	IplImage* srcImg = cvCreateImage(cvSize(size.width/2, size.height/2), IPL_DEPTH_8U, 1);
+	IplImage* srcImg = cvCreateImage(cvSize(resizedImg->width, resizedImg->height), IPL_DEPTH_8U, 1);
 
 	//cout << img.size().height << ", " << img.size().width << endl;
 	//cout << srcImg->height << ", " << srcImg->width << endl;
@@ -104,6 +104,28 @@ int WinMain(HINSTANCE hInstance,
 	IplImage* currentSrc = cvCloneImage(srcImg);
 
 	IplImage* nextSrc = NULL;
+
+
+	int intvls = 2;
+	double sigma = 1.6;
+	double* sig = (double *)calloc( intvls + 3, sizeof(double));
+	double sig_total, sig_prev, k;
+	int i, o;
+
+	/*
+			precompute Gaussian sigmas using the following formula:
+
+			\sigma_{total}^2 = \sigma_{i}^2 + \sigma_{i-1}^2
+	 */
+	sig[0] = sigma;
+	k = pow( 2.0, 1.0 / intvls );
+	for( i = 1; i < intvls + 3; i++ )
+	{
+		sig_prev = pow( k, i - 1 ) * sigma;
+		sig_total = sig_prev * k;
+		sig[i] = sqrt( sig_total * sig_total - sig_prev * sig_prev );
+	}
+
 	//1단계. 옥타브별로 D이미지 구함
 	for(int octave = 0 ; octave < maxOctave ; octave++){
 
@@ -112,7 +134,7 @@ int WinMain(HINSTANCE hInstance,
 		for(int scale = 0 ; scale < maxScale ; scale++, sigma*=20){
 			//현재 스케일의 일반 이미지
 			IplImage* smoothImage = cvCreateImage(cvSize(currentSrc->width, currentSrc->height), IPL_DEPTH_8U, 1);
-			cvSmooth(currentSrc, smoothImage, CV_GAUSSIAN, 5+scale*2, 5+scale*2);
+			cvSmooth(currentSrc, smoothImage, CV_GAUSSIAN, 0, 0, sig[scale], sig[scale] );
 			oneOctaveImages[scale] = smoothImage;
 		}
 		octaveScaleVector.push_back(oneOctaveImages);
@@ -151,7 +173,7 @@ int WinMain(HINSTANCE hInstance,
 
 
 	//CvMat *mat = cvCreateMat( oneOctaveImages[scale]->height, oneOctaveImages[scale]->width, CV_32S );
-	int initThreshold = 30;
+	int initThreshold = 5;
 	vector<vector<CvMat*> > octaveKeypoint;
 
 	vector<IplImage**>::iterator itDog;
@@ -186,14 +208,17 @@ int WinMain(HINSTANCE hInstance,
 					int center = CV_MAT_ELEM_CN( *mat, int, y, x  );
 					//if(itDog == octaveScaleVector.begin() && scale == 1 && y == 0)
 					//	cout << "test: " << x << ", " << center << endl;
-					int startX = x -1;
+
+					int compareRadious = 1;
+
+					int startX = x - compareRadious;
 					if(startX < 0) startX = 0;
-					int startY = y -1;
+					int startY = y - compareRadious;
 					if(startY < 0) startY = 0;
 
-					int endX = x + 1;
+					int endX = x + compareRadious;
 					if(endX >= mat->width) endX = mat->width-1;
-					int endY = y + 1;
+					int endY = y + compareRadious;
 					if(endY >= mat->height) endY = mat->height-1;
 
 					int maxDiff = 0;
@@ -250,10 +275,10 @@ int WinMain(HINSTANCE hInstance,
 	IplImage* test1 = cvCreateImage(cvSize(srcImg->width, srcImg->height), IPL_DEPTH_8U, 1);
 	cvSmooth(srcImg, test1, CV_GAUSSIAN, 5, 5);
 
-//	CvMat* dstMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
-//	cvConvert(test, dstMat);
-//	CvMat* resultMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
-//	cvmSub(dstMat, srcMat, resultMat);
+	//	CvMat* dstMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
+	//	cvConvert(test, dstMat);
+	//	CvMat* resultMat = cvCreateMat(srcImg->height, srcImg->width, CV_32FC1);
+	//	cvmSub(dstMat, srcMat, resultMat);
 
 	//	for(int i = 0 ; i < srcImg->width && i < 100 ; i ++){
 	//		for(int j = 0 ; j < srcImg->height && j < 5; j++){
@@ -307,6 +332,50 @@ int WinMain(HINSTANCE hInstance,
 	vector<vector<CvMat*> >::iterator it1;
 	vector<CvMat*>::iterator it2;
 	IplImage* testResult = resizedImg;//cvCreateImage(cvSize(srcImg->width, srcImg->height), IPL_DEPTH_8U, 1);
+
+	for(it1 = octaveKeypoint.begin(); it1 != octaveKeypoint.end() ; it1++){
+		if( it1 == octaveKeypoint.begin()){
+			for(it2 = it1->begin(); it2 != it1->end() ; it2++){
+				if( it2 == it1->begin()){
+					//cout << "hi" << endl;
+					CvMat* mat = *it2;
+
+					int keyCount = 0;
+					vector<CvPoint> continousKeypoints;
+
+					for(int xx = 0 ; xx < mat->width ; xx++){
+						for(int yy = 0 ; yy < mat->height ; yy++){
+							int keyVal = CV_MAT_ELEM_CN( *mat, int, yy, xx  );
+							//cout << keyVal << endl;
+							if(keyVal == 1)
+							{
+								continousKeypoints.push_back(cvPoint(xx, yy));
+							}
+							else if(continousKeypoints.size() > 0){
+								vector<CvPoint>::iterator it_points;
+								int xSum = 0;
+								int ySum = 0;
+								for(it_points = continousKeypoints.begin(); it_points != continousKeypoints.end() ; it_points++){
+									CvPoint point = *it_points;
+									xSum += point.x;
+									ySum += point.y;
+									CV_MAT_ELEM( *mat, int, point.y, point.x  ) = 0;
+								}
+								int avgX = xSum / continousKeypoints.size();
+								int avgY = ySum / continousKeypoints.size();
+
+								CV_MAT_ELEM( *mat, int, avgY, avgX  ) = 1;
+								continousKeypoints.clear();
+							}
+						}
+					}
+					//cout << "total: " << mat->height * mat->width << ", keyPoints: " << keyCount << endl;
+
+				}
+			}
+
+		}
+	}
 
 	for(it1 = octaveKeypoint.begin(); it1 != octaveKeypoint.end() ; it1++){
 		if( it1 == octaveKeypoint.begin()){
